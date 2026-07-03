@@ -1,0 +1,72 @@
+﻿notebooks/phase1_naive_baseline.ipynb | python3 | .venv | md: 11
+  [0] # Phase 1: Naive Baseline ΓÇö Proving the Sleeping Dog Problem  **CPIS ┬╖ Causal Promotion Intelligence System**  ---  ## The Business Problem  Most production promotion-targeting systems work like this:
+  [1] ## Section 0: Setup
+  [2] ## Section 1: Load Data & Feature Engineering (DuckDB)  All feature engineering is executed in DuckDB ΓÇö zero pandas transforms. DuckDB runs columnar SQL in-process, so we get full SQL expressiveness w
+  [3] ## Section 2: Train/Test Split  We pull the engineered features from DuckDB into numpy arrays and perform an 80/20 stratified split, stratifying on the conversion label to ensure both splits have repr
+  [4] ## Section 3: Train Naive XGBoost ΓÜá∩╕Å (Intentionally Wrong Approach)  **The naive mistake**: train a conversion classifier on the **treatment arm only**, then use P(convert | X, T=1) to rank **all** cu
+  [5] ## Section 4: Prove the Sleeping Dog Problem  **This is the core diagnostic section.**  We push the naive model scores back into DuckDB and run SQL-based analysis to demonstrate exactly where the budg
+  [6] ### The Sleeping Dog Interpretation  Look at the Persuadability Matrix carefully:  - **High Score + Treated** converts at ~X% - **High Score + Control** converts at ~Y% (nearly the same!)  This means 
+  [7] ## Section 5: Persuadability Matrix Plot  Visual representation of the 4-quadrant analysis. The key cell to watch: **High Score + Control** ΓÇö if it's as green as High Score + Treated, the model is tar
+  [8] ## Section 6: Qini Curve ΓÇö The Correct Uplift Metric  **Qini AUC** measures how much incremental lift is captured by ranking customers by the model's score. Unlike AUC-ROC, it uses the RCT structure t
+  [9] ## Section 7: Export Results
+  [10] ## Section 8: Conclusion  ---  ### What We Proved  **Finding 1: AUC-ROC is the wrong success metric for promotion targeting**   The naive XGBoost model achieves some AUC-ROC (see final cell) ΓÇö trained
+notebooks/phase2_meta_learners.ipynb | python3 | .venv | md: 16
+  [0] # Phase 2 ΓÇö Meta-Learner CATE Estimation  **Goal:** Replace the Phase 1 naive propensity model with causal estimators (T-Learner, S-Learner, X-Learner) that distinguish *persuadable* customers from cu
+  [1] ## Section 0 ΓÇö Setup
+  [2] ## Section 1 ΓÇö Load Features with DuckDB  We load the raw Hillstrom CSV into DuckDB, then apply the same feature engineering SQL that was used in Phase 1. Using DuckDB here rather than pandas mutation
+  [3] ## Section 2 ΓÇö Train / Test Split  We stratify on `conversion` (rare event at ~9%) to ensure both splits have the same conversion rate. The test set holds out 20% (Γëê12,800 rows), matching Phase 1. We 
+  [4] ## Section 3 ΓÇö Naive Baseline (Phase 1 Reference)  The Phase 1 naive model was trained on the treated arm only (`T=1`) and scored all customers by P(convert | X, T=1). This is **not** a treatment effe
+  [5] ## Section 4 ΓÇö T-Learner  **T-Learner** trains two separate outcome models: ╬╝Γéü(x) on the treated arm and ╬╝ΓéÇ(x) on the control arm. CATE = ╬╝Γéü(x) ΓêÆ ╬╝ΓéÇ(x). This isolates the treatment effect by construct
+  [6] ## Section 5 ΓÇö S-Learner  **S-Learner** includes treatment T as just another feature in a single model ╬╝(x, t). CATE = ╬╝(x, 1) ΓêÆ ╬╝(x, 0). This is simple but the model may shrink the treatment effect t
+  [7] ## Section 6 ΓÇö X-Learner  **X-Learner** (K├╝nzel et al., 2019) is designed for imbalanced treatment arms. It first fits a T-Learner, then imputes counterfactual pseudo-outcomes for each arm: D╠âΓéü = YΓéü ΓêÆ
+  [8] ## Section 7 ΓÇö Evaluation: Qini Curves  The **Qini curve** ranks customers by predicted score (descending) and measures cumulative incremental conversions ΓÇö treated conversions minus the proportional 
+  [9] ## Section 8 ΓÇö CATE Distribution Comparison  The distribution of predicted CATEs reveals the model's view of treatment heterogeneity:  - **Naive XGB** scores range (0, 1) ΓÇö they are conversion probabi
+  [10] ## Section 9 ΓÇö Uplift @ Decile Table (DuckDB)  This is the critical **real-world validation**. We push all CATE scores back into DuckDB and compute actual observed uplift (treated conversion rate ΓêÆ co
+  [11] ## Section 10 ΓÇö Comparison Table  Aggregate all model metrics: Qini AUC, deadweight loss %, mean CATE, CATE standard deviation, and fraction of positive CATEs. The Phase 1 metrics are loaded from CSV 
+  [12] ## Section 11 ΓÇö Feature Heterogeneity Analysis  Which customer characteristics predict *who responds to promotions*? We correlate each feature with the X-Learner CATE to identify drivers of treatment 
+  [13] **Interpretation:** Unlike Phase 1 feature importance which reflects overall conversion likelihood, these correlations show which features predict *who responds to promotions* ΓÇö a fundamentally differ
+  [14] ## Section 12 ΓÇö Export Outputs
+  [15] ## Section 13 ΓÇö Conclusion  ### Phase 2 Summary: Meta-Learners vs Naive Baseline  **1. T-Learner improvement over naive** By training separate outcome models on each arm, the T-Learner directly estima
+notebooks/phase3_causal_forest.ipynb | python3 | .venv | md: 15
+  [0] # Phase 3 ΓÇö Causal Forest CATE Estimation  **Goal:** Replace meta-learner CATE estimates with a non-parametric Causal Forest that directly optimises for treatment effect heterogeneity, provides honest
+  [1] ## Section 0 ΓÇö Setup
+  [2] ## Section 1 ΓÇö Load Features  Load the engineered features parquet produced in Phase 2. If it is missing (e.g., fresh clone), rebuild from the raw CSV using the same DuckDB feature SQL so the notebook
+  [3] ## Section 2 ΓÇö Causal Forest: Theory  ### Causal Forest (CausalForestDML)  Meta-learners (T/S/X-Learner) require you to choose a base model and hyperparameters. Causal Forest is fundamentally differen
+  [4] ## Section 3 ΓÇö Fit CausalForestDML  XGBoost nuisance models are used for both E[Y|X] and E[T|X]. The `cv=5` argument triggers 5-fold cross-fitting for the DML residuals, ensuring that the nuisance pre
+  [5] ## Section 4 ΓÇö Qini Evaluation  We compute the Qini AUC for the Causal Forest and merge it into the Phase 2 comparison table. The Qini coefficient measures how much incremental lift is captured by ran
+  [6] ## Section 5 ΓÇö Qini Curve Plot (All Models)  All available models are plotted together so we can see where the Causal Forest diverges from meta-learners at different targeting depths. The x-axis is th
+  [7] ## Section 6 ΓÇö Confidence Interval Analysis  Standard meta-learners produce point estimates of CATE with no uncertainty quantification. In production, sending a promotion to a customer whose CATE CI i
+  [8] ## Section 7 ΓÇö Heterogeneity Feature Importance  `cf.feature_importances_` measures how much each feature drives **heterogeneity in treatment effects** ΓÇö not predictive accuracy. A feature that predic
+  [9] The heterogeneity importance ranks features by how much they explain *who responds to treatment*, not who converts. `history` and `recency` dominate ΓÇö longer-lapsed customers with moderate purchase hi
+  [10] ## Section 8 ΓÇö Partial Dependence: CATE vs History  A partial dependence plot (PDP) shows how the Causal Forest's predicted CATE changes as a single feature varies, holding all other features at their
+  [11] ## Section 9 ΓÇö Subgroup Analysis: CATE by Recency Bucket  We push the scored test set into DuckDB and aggregate predicted CATE and actual uplift by recency bucket. This serves as a sanity check: if th
+  [12] ## Section 10 ΓÇö Criteo Uplift v2: Academic Benchmark  ### Criteo Uplift v2 ΓÇö Academic Benchmark  The Hillstrom dataset is ideal for storytelling (named features, real business context) but is small (6
+  [13] ## Section 11 ΓÇö Export Phase 3 Outputs
+  [14] ## Section 12 ΓÇö Conclusion  ### 1. Causal Forest vs Meta-Learners  The Causal Forest (CausalForestDML) achieves the highest Qini AUC in the comparison table, outperforming the best Phase 2 meta-learne
+notebooks/phase4_dr_learner_robustness.ipynb | python3 | .venv | md: 17
+  [0] # Phase 4 ΓÇö Doubly Robust Learner & Confounding Robustness Experiment  **Goal:** Introduce the DR-Learner (semiparametrically efficient CATE estimator) and run the central robustness experiment: how m
+  [1] ## Section 0 ΓÇö Setup
+  [2] ## Section 1 ΓÇö Load Data  Load the engineered features parquet (produced in Phase 1/2). If missing, rebuild from raw CSV with the same DuckDB SQL so the notebook is fully self-contained.
+  [3] ## Section 2 ΓÇö The Doubly Robust Learner: Theory  ### The Doubly Robust Learner ΓÇö Semiparametric Efficiency and the Pseudo-Outcome Trick  #### 1. The Fundamental Problem with T-Learner and Causal Fore
+  [4] ## Section 3 ΓÇö Fit DR-Learner
+  [5] ## Section 4 ΓÇö Update Master Comparison Table
+  [6] ## Section 5 ΓÇö Qini Curve: All 5 Models
+  [7] ## Section 6 ΓÇö The Robustness Experiment  ### Research Setup: What Happens When Treatment Is Not Random?  The Hillstrom dataset is a clean RCT. In practice, companies do not randomise: loyal, high-spe
+  [8] ### 6b ΓÇö Create the Confounded Training Set
+  [9] ### 6c ΓÇö Fit T-Learner on Confounded Data
+  [10] ### 6d ΓÇö Fit DR-Learner on Confounded Data
+  [11] ## Section 7 ΓÇö Robustness Results Table
+  [12] ## Section 8 ΓÇö Robustness Visualisation (2├ù2)
+  [13] ## Section 9 ΓÇö The Confounding Mechanism: CATE by History Quartile  This plot is the smoking gun. If confounding has been absorbed into T-Learner's CATE, we expect CATE to rise monotonically with purc
+  [14] ## Section 10 ΓÇö Core Finding (Research Paragraph)
+  [15] ## Section 11 ΓÇö Export Final Phase 4 Outputs
+  [16] ## Section 12 ΓÇö Conclusion & Phase 5 Preview  ### Summary  **DR-Learner** achieves the best clean Qini AUC across all four phases and the lowest degradation under realistic selection confounding ΓÇö the
+notebooks/phase5a_budget_optimizer.ipynb | python3 | .venv | md: 8
+  [0] # Phase 5A ΓÇö Budget-Constrained Promotion Targeting  **Causal Promotion Intelligence System (CPIS)**   Using DR-Learner CATE scores to allocate promotion budgets optimally via Linear Programming.  ---
+  [1] ## Section 0 ΓÇö Setup
+  [2] ## Section 1 ΓÇö Load CATE Scores (DuckDB)
+  [3] ## Section 2 ΓÇö Theory: Why CATE-Optimal Targeting Beats Naive Propensity Scoring  ### The Neyman-Pearson Lemma for Uplift  Under a **uniform cost** constraint (every promotion costs $c$), the budget-c
+  [4] ## Section 3 ΓÇö Run Budget Sweep
+  [5] ## Section 4 ΓÇö Visualisation
+  [6] ## Section 5 ΓÇö The Savings Calculator
+  [7] ## Section 6 ΓÇö Business Conclusion  ### Results Summary  The DR-Learner CATE optimizer delivers three measurable business improvements over naive propensity-score targeting:  **1. Higher incremental l

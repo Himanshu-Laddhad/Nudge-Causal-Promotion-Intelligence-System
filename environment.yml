@@ -1,0 +1,31 @@
+name: nudge
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - numpy>=1.26,<2.0
+  - pandas>=2.2,<3.0
+  - scipy>=1.13
+  - scikit-learn>=1.5
+  - xgboost>=2.1
+  - lightgbm>=4.4
+  - duckdb>=1.0
+  - pyarrow>=16
+  - matplotlib>=3.9
+  - seaborn>=0.13
+  - plotly>=5.22
+  - streamlit>=1.36
+  - jupyterlab>=4.2
+  - ipywidgets>=8.1
+  - tqdm>=4.66
+  - black>=24
+  - ruff>=0.5
+  - pytest>=8
+  - pip:
+      - econml>=0.15,<1.0
+      - causalml>=0.15,<1.0
+      - scikit-uplift>=0.5,<1.0
+      - python-dotenv>=1.0
+      - fastparquet>=2024.0
