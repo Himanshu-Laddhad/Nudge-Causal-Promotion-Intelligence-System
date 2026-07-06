@@ -1,30 +1,9 @@
 """
 Budget-constrained promotion targeting via Linear Programming.
 
-Causal framing
---------------
-Given individual CATE estimates τ̂(xᵢ), the promotion targeting problem is:
-
-    max   Σᵢ τ̂(xᵢ) · xᵢ
-    s.t.  Σᵢ c · xᵢ ≤ B        (budget constraint)
-          xᵢ ∈ {0, 1}            (binary targeting decision)
-
-where c = cost per promotion, B = total budget.
-
-This is a 0-1 knapsack problem. When τ̂(xᵢ) > 0 for all items and costs
-are uniform (cᵢ = c for all i), the LP relaxation is tight and the optimal
-integer solution is simply: sort by τ̂(xᵢ) descending, take top K = ⌊B/c⌋.
-This is the Neyman-Pearson uplift rule.
-
-When costs are heterogeneous (e.g., different discount depths per segment),
-we use scipy.optimize.linprog on the LP relaxation and round, or PuLP for
-exact integer programming.
-
-ROI calculation
----------------
-Expected incremental revenue = Σᵢ∈S τ̂(xᵢ) × revenue_per_conversion
-Expected cost                = |S| × cost_per_promo
-ROI = (incremental_revenue - cost) / cost
+For uniform costs, uses the closed-form Neyman-Pearson solution (sort by CATE,
+take top-K). For heterogeneous costs, falls back to the LP relaxation with
+greedy rounding (0-1 knapsack).
 """
 
 from __future__ import annotations
@@ -36,10 +15,6 @@ from scipy.optimize import linprog
 class LPBudgetOptimizer:
     """
     LP-based budget optimizer for promotion targeting.
-
-    For uniform costs (the common case), uses the closed-form Neyman-Pearson
-    solution (sort by CATE, take top-K). For heterogeneous costs, falls back
-    to the LP relaxation with randomised rounding.
 
     Parameters
     ----------
@@ -69,7 +44,6 @@ class LPBudgetOptimizer:
             costs = np.full(n, self.cost_per_promo)
         costs = np.asarray(costs, dtype=float)
 
-        # Neyman-Pearson closed form for uniform costs
         if np.allclose(costs, costs[0]):
             k = min(int(budget / costs[0]), n)
             order = np.argsort(-scores)

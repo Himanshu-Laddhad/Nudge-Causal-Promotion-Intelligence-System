@@ -1,21 +1,8 @@
--- =============================================================================
 -- 05_segment_profiles.sql
 -- Profile predicted CATE segments (persuadable / neutral / sleeping dog).
+-- Run after a model has written CATE scores to outputs/phase1_naive_scores.parquet.
 --
--- Usage
--- -----
--- Run after a model has written its CATE scores to:
---     outputs/phase1_naive_scores.parquet   (or any scored output)
---
--- This query reads the scores parquet and joins back to hillstrom_features
--- to build a rich segment-level profile table for the dashboard.
---
--- Segments (configurable thresholds)
--- -----------------------------------
--- persuadable  : CATE > +0.01   → target with promotion
--- neutral      : |CATE| ≤ 0.01  → marginal; skip if budget constrained
--- sleeping_dog : CATE < -0.01   → actively avoid (backfire risk)
--- =============================================================================
+-- Thresholds: persuadable > +0.01, sleeping_dog < -0.01, neutral otherwise.
 
 CREATE OR REPLACE VIEW cate_segments AS
 SELECT
@@ -27,7 +14,6 @@ SELECT
         ELSE                           'neutral'
     END                              AS segment,
 
-    -- Features for profiling
     f.recency,
     f.history,
     f.newbie,
@@ -41,8 +27,6 @@ SELECT
     f.ch_multi,
     f.mens,
     f.womens,
-
-    -- Actuals
     f.conversion,
     f.spend,
     f.treatment

@@ -1,7 +1,4 @@
-"""
-Page 5 — Technical Deep Dive
-Causal identification, robustness, and model validation.
-"""
+"""Page 5 — Technical Deep Dive: robustness experiment and model validation."""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -27,7 +24,7 @@ from dashboard.utils.charts import (
     GRID,
 )
 
-st.set_page_config(page_title='Technical Deep Dive — CPIS', layout='wide')
+st.set_page_config(page_title='Technical Deep Dive — Nudge', layout='wide')
 
 st.title("🔬 Technical Deep Dive")
 st.markdown("### Causal identification, robustness, and model validation")

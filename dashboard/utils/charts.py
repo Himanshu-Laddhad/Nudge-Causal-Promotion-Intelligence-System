@@ -1,13 +1,9 @@
-"""
-Reusable Plotly chart builders for CPIS dashboard.
-All charts use the CPIS dark theme (matching notebook style).
-"""
+"""Reusable Plotly chart builders for the Nudge dashboard."""
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
 import numpy as np
 
-# ── Theme constants ──────────────────────────────────────────────────────────
 BG_PLOT  = '#1a1a2e'
 BG_PAPER = '#16213e'
 TEXT     = '#ecf0f1'

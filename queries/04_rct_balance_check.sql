@@ -1,22 +1,6 @@
--- =============================================================================
 -- 04_rct_balance_check.sql
--- Verify that the Hillstrom RCT is well-balanced on pre-treatment covariates.
---
--- Why this matters
--- ----------------
--- Uplift models rely on the Stable Unit Treatment Value Assumption (SUTVA)
--- and unconfoundedness.  In a well-executed RCT, treatment assignment is
--- independent of all pre-treatment covariates — the balance check below
--- is the empirical verification of this.
---
--- A significant imbalance on any covariate would suggest selection bias
--- (e.g., if older customers were more likely assigned to the email arm).
---
--- Interpretation
--- --------------
--- Standardised Mean Difference (SMD) < 0.1 is typically considered
--- "negligible" imbalance.  SMD > 0.2 warrants investigation.
--- =============================================================================
+-- Verify Hillstrom RCT covariate balance via Standardised Mean Difference (SMD).
+-- SMD < 0.1 indicates negligible imbalance; SMD > 0.2 warrants investigation.
 
 WITH stats AS (
     SELECT

@@ -1,19 +1,14 @@
-"""
-CPIS — Causal Promotion Intelligence System
-Streamlit Multi-Page Dashboard
-
-Reads pre-computed outputs from outputs/. No live model inference.
-"""
+"""Nudge — Streamlit multi-page dashboard. Reads pre-computed outputs from outputs/."""
 import streamlit as st
 
 st.set_page_config(
-    page_title='CPIS — Causal Promotion Intelligence',
+    page_title='Nudge — Causal Promotion Targeting',
     page_icon='🎯',
     layout='wide',
     initial_sidebar_state='expanded',
 )
 
-# ── Global dark CSS ──────────────────────────────────────────────────────────
+# Global dark CSS
 st.markdown("""
 <style>
     /* Main background */
@@ -74,10 +69,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🎯 CPIS")
-    st.markdown("**Causal Promotion Intelligence System**")
+    st.markdown("## 🎯 Nudge")
+    st.markdown("**Causal Promotion Targeting**")
     st.markdown("---")
     st.markdown("""
 **Navigate:**
@@ -96,16 +90,13 @@ with st.sidebar:
     st.markdown("---")
     st.caption("Phase 5B · Portfolio Project")
 
-# ── Home landing ─────────────────────────────────────────────────────────────
-st.title("Causal Promotion Intelligence System")
+st.title("Nudge — Causal Promotion Targeting")
 st.markdown("""
-### Identify who is genuinely persuaded by a discount — and who would have bought anyway.
+### Identify who is genuinely persuaded by a promotion — and who would have bought anyway.
 
-Standard machine learning targets customers by **P(buy | X)** — their conversion probability.
-Under a budget constraint, this wastes promotions on loyal customers who would convert regardless.
-
-CPIS estimates the **Conditional Average Treatment Effect (CATE)** — the incremental lift
-a promotion *causes* for each individual — and targets only the genuinely persuadable segment.
+Nudge uses causal ML to estimate the **Conditional Average Treatment Effect (CATE)** — the incremental
+lift a promotion *causes* for each individual — and allocates budget only to the genuinely persuadable
+segment, eliminating deadweight spend on loyal customers who convert regardless.
 """)
 
 col1, col2, col3, col4 = st.columns(4)
@@ -116,7 +107,6 @@ col4.metric("Best Model", "DR-Learner")
 
 st.markdown("---")
 
-# ── Data availability status ─────────────────────────────────────────────────
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -144,6 +134,6 @@ for i, (key, label) in enumerate(items):
 
 st.markdown("---")
 st.markdown("""
-**Select a page from the sidebar** to explore the analysis. Each page builds on the previous:
+**Select a page from the sidebar** to explore the analysis.
 *Problem* → *Solution* → *Who responds?* → *Optimal spend* → *Technical validation*
 """)

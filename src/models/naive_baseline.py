@@ -1,20 +1,9 @@
 """
-Naive XGBoost baseline (Phase 1).
+Naive XGBoost propensity baseline (Phase 1).
 
-Causal framing – why this is wrong
-------------------------------------
-A naïve approach trains a propensity-to-convert model on *all* customers
-(treated + control) using treatment as just another feature.  The model
-learns P(Y=1 | X, T) — the probability of conversion given treatment.
-
-The fatal flaw: the model ranks customers by *overall conversion probability*,
-not by *incremental lift*.  High-baseline customers (people who'd buy
-regardless) look attractive to the naive model but are precisely the segment
-where promotion is wasted.  These "always buyers" are the sleeping-dog problem.
-
-This module exists to **prove the problem**: show that naive propensity
-targeting is strictly worse than uplift-aware targeting on Qini/AUUC, while
-appearing deceptively good on AUC-ROC.
+Trains P(conversion | X, T) with treatment as a feature — the naive mistake.
+Used as a benchmark to demonstrate that propensity ranking conflates loyalty
+with incremental lift, resulting in systematic targeting of sleeping dogs.
 """
 
 from __future__ import annotations
@@ -28,12 +17,11 @@ from sklearn.metrics import roc_auc_score
 
 class NaiveXGBBaseline:
     """
-    Trains an XGBoost classifier to predict P(conversion | X, treatment).
+    XGBoost classifier predicting P(conversion | X, treatment).
 
-    The 'uplift score' is simply the difference in predicted conversion
-    probability between treatment=1 and treatment=0 for each customer —
-    which is NOT a proper CATE estimator (no cross-fitting, no Neyman
-    orthogonality), but mimics what a naive practitioner might do.
+    The uplift score is P(Y=1|X,T=1) - P(Y=1|X,T=0) — not a proper CATE
+    estimator (no cross-fitting, no Neyman orthogonality), but representative
+    of what naive practitioners deploy.
 
     Parameters
     ----------
@@ -76,7 +64,7 @@ class NaiveXGBBaseline:
         Fit on the full training set (treatment as a feature column).
 
         Deliberately includes 'treatment' in X so the model sees it —
-        that is the naive mistake we are illustrating.
+        that is the naive mistake this class illustrates.
         """
         self._feature_names = list(X.columns)
         X_aug = X.copy()
@@ -87,10 +75,9 @@ class NaiveXGBBaseline:
 
     def predict_uplift(self, X: pd.DataFrame) -> np.ndarray:
         """
-        Compute pseudo-uplift as P(Y=1|X,T=1) - P(Y=1|X,T=0).
+        Pseudo-uplift: P(Y=1|X,T=1) - P(Y=1|X,T=0).
 
-        This is the *wrong* causal estimator (no cross-fitting, treatment
-        not randomised at prediction time), but it is what naive models do.
+        Not a valid CATE estimator — no cross-fitting, no orthogonality.
         """
         if self.model is None:
             raise RuntimeError("Call .fit() first.")
@@ -112,10 +99,9 @@ class NaiveXGBBaseline:
         treatment: np.ndarray,
     ) -> np.ndarray:
         """
-        Generate out-of-fold uplift scores via StratifiedKFold CV.
+        Out-of-fold uplift scores via StratifiedKFold CV.
 
-        OOF scores prevent optimistic leakage when evaluating on the same
-        data used for fitting — important for fair Qini comparisons.
+        OOF prevents optimistic leakage when evaluating on training data.
         """
         X_aug = X.copy()
         X_aug["treatment"] = treatment

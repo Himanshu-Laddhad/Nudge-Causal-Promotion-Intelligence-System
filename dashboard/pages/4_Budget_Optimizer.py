@@ -1,8 +1,4 @@
-"""
-Page 4 — Budget Optimizer
-Set your campaign budget and see the optimal targeting strategy.
-All computation is done in-memory from pre-loaded CATE scores — no model inference.
-"""
+"""Page 4 — Budget Optimizer: optimal promotion allocation from CATE scores."""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -25,7 +21,7 @@ from dashboard.utils.charts import (
     GRID,
 )
 
-st.set_page_config(page_title='Budget Optimizer — CPIS', layout='wide')
+st.set_page_config(page_title='Budget Optimizer — Nudge', layout='wide')
 
 st.title("💰 Budget Optimizer")
 st.markdown("### Set your campaign budget and see the optimal targeting strategy")

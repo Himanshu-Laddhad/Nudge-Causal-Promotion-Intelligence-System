@@ -1,7 +1,4 @@
-"""
-Page 1 — Business Problem
-Why standard ML wastes your promotion budget: the sleeping dog problem.
-"""
+"""Page 1 — Business Problem: why standard ML wastes promotion budget."""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -26,7 +23,7 @@ from dashboard.utils.charts import (
     BG_PLOT,
 )
 
-st.set_page_config(page_title='Business Problem — CPIS', layout='wide')
+st.set_page_config(page_title='Business Problem — Nudge', layout='wide')
 
 st.title("📊 The Business Problem")
 st.markdown("### Why standard ML wastes your promotion budget")
@@ -39,21 +36,17 @@ col_text, col_metric = st.columns([3, 2])
 
 with col_text:
     st.markdown("""
-**Standard ML models rank customers by P(convert | X)** — who is most likely to buy.
-Under a budget constraint this sounds sensible, but it optimises the *wrong objective*.
+**Standard ML models rank customers by P(convert | X)** — conversion probability.
+Under a budget constraint this optimises the *wrong objective*: it targets loyal customers
+who convert regardless of the promotion, cannibalising margin and wasting budget.
 
-Customers already likely to buy will often buy **with or without** your promotion.
-Sending them a discount:
-- ❌ Cannibalises margin (you gave away revenue they'd have paid full price)
-- ❌ Wastes budget that could have moved fence-sitters
-- ❌ Misallocates up to **60–70% of your campaign budget**
-
-The correct question is not *"who will buy?"* but **"who will buy *because of* the promotion?"**
-That incremental effect is called the **Conditional Average Treatment Effect (CATE)**.
+Nudge estimates the **Conditional Average Treatment Effect (CATE)**:
 
 > τ(x) = E[Y(1) − Y(0) | X = x]
->
-> A customer with τ(x) ≤ 0 is a **sleeping dog** — targeting them is pure deadweight loss.
+
+Customers with τ(x) ≤ 0 are **sleeping dogs** — targeting them is pure deadweight loss.
+Customers with τ(x) >> 0 are **persuadables** — the only segment where a promotion
+creates net-new revenue.
     """)
 
 with col_metric:

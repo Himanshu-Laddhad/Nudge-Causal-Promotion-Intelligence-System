@@ -1,7 +1,4 @@
-"""
-Page 2 — Model Progression
-How causal ML improves over standard propensity models.
-"""
+"""Page 2 — Model Progression: causal ML vs. propensity baseline."""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -27,7 +24,7 @@ from dashboard.utils.charts import (
 )
 import plotly.graph_objects as go
 
-st.set_page_config(page_title='Model Progression — CPIS', layout='wide')
+st.set_page_config(page_title='Model Progression — Nudge', layout='wide')
 
 st.title("📈 Model Progression")
 st.markdown("### How causal ML improves over standard propensity models")

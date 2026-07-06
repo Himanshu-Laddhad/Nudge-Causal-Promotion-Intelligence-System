@@ -1,9 +1,8 @@
 """
 Uplift visualisation utilities.
 
-All plots follow a consistent visual style (dark background, CPIS colour
-palette) and return matplotlib Figure objects so callers can save or embed
-them in notebooks / Streamlit.
+All plots use a consistent dark theme and return matplotlib Figure objects
+for embedding in notebooks or Streamlit.
 """
 
 from __future__ import annotations
@@ -17,7 +16,6 @@ from typing import Sequence
 from .metrics import qini_curve, auuc
 
 
-# ── Style constants ──────────────────────────────────────────────────────────
 PALETTE = {
     "naive":    "#e74c3c",
     "t_learner":"#3498db",
@@ -39,11 +37,6 @@ def _style_ax(ax: plt.Axes) -> None:
     ax.title.set_color("#ecf0f1")
     for spine in ax.spines.values():
         spine.set_edgecolor("#2c3e50")
-
-
-# ---------------------------------------------------------------------------
-# Qini curve comparison
-# ---------------------------------------------------------------------------
 
 
 def plot_qini_curves(
@@ -80,7 +73,6 @@ def plot_qini_curves(
         ax.plot(fracs * 100, qini, label=f"{r['name']}  (Qini={auc_val:.4f})",
                 color=color, linewidth=2)
 
-    # Random baseline (diagonal)
     max_qini = max(
         qini_curve(r["y_true"], r["uplift_score"], r["treatment"])[-1].max()
         for r in results
@@ -97,11 +89,6 @@ def plot_qini_curves(
     return fig
 
 
-# ---------------------------------------------------------------------------
-# CATE distribution
-# ---------------------------------------------------------------------------
-
-
 def plot_cate_distribution(
     cate_scores: np.ndarray,
     model_name: str = "model",
@@ -111,7 +98,7 @@ def plot_cate_distribution(
     """
     Histogram of predicted CATE values with vertical lines at key quantiles.
 
-    The shape of this distribution is a primary diagnostic:
+    Distribution shape is a primary diagnostic:
     - Bimodal: model separates persuadables from sleeping dogs (good).
     - Narrow spike near 0: model is under-fitting (bad).
     - Heavy left tail: many customers actively harmed by promotions.
@@ -141,11 +128,6 @@ def plot_cate_distribution(
               facecolor="#1a1a2e")
     fig.tight_layout()
     return fig
-
-
-# ---------------------------------------------------------------------------
-# Segment waterfall: persuadables vs sleeping dogs
-# ---------------------------------------------------------------------------
 
 
 def plot_segment_waterfall(

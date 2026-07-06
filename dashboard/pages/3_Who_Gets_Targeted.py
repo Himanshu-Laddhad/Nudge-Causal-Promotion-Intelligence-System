@@ -1,7 +1,4 @@
-"""
-Page 3 — Who Gets Targeted?
-Customer segment analysis — who responds to promotions?
-"""
+"""Page 3 — Who Gets Targeted? Customer segment analysis."""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -27,7 +24,7 @@ from dashboard.utils.charts import (
     GRID,
 )
 
-st.set_page_config(page_title='Who Gets Targeted — CPIS', layout='wide')
+st.set_page_config(page_title='Who Gets Targeted — Nudge', layout='wide')
 
 st.title("👥 Who Gets Targeted?")
 st.markdown("### Customer segment analysis — who responds to promotions?")

@@ -1,9 +1,4 @@
-"""
-Cached data loaders for CPIS dashboard.
-
-All data is pre-computed. This module loads parquets/CSVs once per session
-using st.cache_data and provides clean accessor functions to each page.
-"""
+"""Cached data loaders for the Nudge dashboard. All data is pre-computed."""
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -24,10 +19,11 @@ FEATURE_COLS = [
 
 @st.cache_data
 def load_cate_scores() -> pd.DataFrame:
-    """Load best available CATE scores, merging across phase outputs.
+    """
+    Load best available CATE scores, merging across phase outputs.
 
-    Falls back gracefully: phase4 → phase3 → phase2 → phase1 (p_convert as proxy).
-    Always normalises the best available score column to _best_cate.
+    Falls back gracefully: phase4 → phase3 → phase2 → phase1.
+    Normalises the best available score column to _best_cate.
     """
     for fname in [
         'phase4_final_cate.parquet',
@@ -42,11 +38,9 @@ def load_cate_scores() -> pd.DataFrame:
                 df['_best_cate'] = df[available[0]]
                 return df
 
-    # Fallback: phase1 naive scores (p_convert renamed for compatibility)
     p = OUTPUTS / 'phase1_naive_scores.parquet'
     if p.exists():
         df = pd.read_parquet(p)
-        # Normalise column name so downstream code always sees 'naive_score'
         if 'p_convert' in df.columns and 'naive_score' not in df.columns:
             df['naive_score'] = df['p_convert']
         df['_best_cate'] = df.get('naive_score', df.get('p_convert'))
@@ -90,7 +84,7 @@ def load_decile_uplift() -> pd.DataFrame:
 
 @st.cache_data
 def load_phase1_scores() -> pd.DataFrame:
-    """Load Phase 1 naive scores specifically (p_convert proxy)."""
+    """Load Phase 1 naive scores (p_convert proxy)."""
     p = OUTPUTS / 'phase1_naive_scores.parquet'
     if not p.exists():
         return pd.DataFrame()

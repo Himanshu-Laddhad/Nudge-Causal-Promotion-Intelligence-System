@@ -1,18 +1,6 @@
--- =============================================================================
 -- 03_hillstrom_train_test_split.sql
--- Reproducible 80/20 stratified split on the Hillstrom feature view.
---
--- Stratification strategy
--- -----------------------
--- We stratify on (treatment × conversion) so that all four strata are
--- balanced in both train and test:
---   (T=0, Y=0)  (T=0, Y=1)  (T=1, Y=0)  (T=1, Y=1)
---
--- This is critical for uplift modelling: if one fold has no treated
--- converters, the T-Learner τ̂₁ model will fail to calibrate.
---
--- Seed: 42 (DuckDB uses row_number + seed for deterministic sampling)
--- =============================================================================
+-- Reproducible 80/20 hash-based split stratified on (treatment × conversion).
+-- Stratification ensures all four strata are balanced in both train and test.
 
 -- 80% training set
 CREATE OR REPLACE TABLE hillstrom_train AS
