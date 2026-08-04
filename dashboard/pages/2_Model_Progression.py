@@ -9,22 +9,17 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from dashboard.utils.data_loader import (
     load_cate_scores,
     load_master_comparison,
-    get_best_cate_col,
+    held_out,
 )
 from dashboard.utils.charts import (
     apply_dark_theme,
     qini_curve_plot,
     bar_comparison,
-    cate_histogram,
     PALETTE,
     TEXT,
-    BG_PAPER,
-    BG_PLOT,
-    GRID,
 )
 import plotly.graph_objects as go
 
-st.set_page_config(page_title='Model Progression — Nudge', layout='wide')
 
 st.title("📈 Model Progression")
 st.markdown("### How causal ML improves over standard propensity models")
@@ -49,26 +44,33 @@ else:
         'T-Learner':     'cate_t_learner',
         'S-Learner':     'cate_s_learner',
         'X-Learner':     'cate_x_learner',
-        'Causal Forest': 'cate_cf',
         'DR-Learner':    'cate_dr_clean',
     }
     # p_convert is phase-1 proxy for naive_score
     if 'naive_score' not in df.columns and 'p_convert' in df.columns:
         df['naive_score'] = df['p_convert']
 
+    # Qini compares scores against observed outcomes, so it must be computed on
+    # the held-out split — otherwise 80% of the rows are scored in-sample.
+    eval_df = held_out(df)
+
     models_data = []
     for name, col in model_col_map.items():
-        if col in df.columns:
-            valid = df[col].notna()
+        if col in eval_df.columns:
+            valid = eval_df[col].notna()
             models_data.append({
                 'name':      name,
-                'scores':    df.loc[valid, col].values,
-                'y_true':    df.loc[valid, 'conversion'].values,
-                'treatment': df.loc[valid, 'treatment'].values,
+                'scores':    eval_df.loc[valid, col].values,
+                'y_true':    eval_df.loc[valid, 'conversion'].values,
+                'treatment': eval_df.loc[valid, 'treatment'].values,
             })
 
     if models_data:
-        st.plotly_chart(qini_curve_plot(models_data), use_container_width=True)
+        st.plotly_chart(qini_curve_plot(models_data), width='stretch')
+        st.caption(
+            f"Computed on {len(eval_df):,} held-out customers "
+            f"(of {len(df):,} scored) so the curves are out-of-sample."
+        )
     else:
         st.warning("No compatible score columns found in loaded data.")
 
@@ -97,17 +99,16 @@ if not comp_df.empty and 'qini_auc' in comp_df.columns:
         title='Qini AUC by Model (Higher = Better Uplift Targeting)',
         color_map=PALETTE,
     )
-    st.plotly_chart(fig_bar, use_container_width=True)
+    st.plotly_chart(fig_bar, width='stretch')
 
     st.markdown("#### Model Descriptions")
     desc_data = {
-        'Model': ['Naive XGB', 'T-Learner', 'S-Learner', 'X-Learner', 'Causal Forest', 'DR-Learner'],
+        'Model': ['Naive XGB', 'T-Learner', 'S-Learner', 'X-Learner', 'DR-Learner'],
         'Objective': [
             'P(convert | X, T=1)',
             'μ₁(X) − μ₀(X)',
             'μ(X,1) − μ(X,0)',
             'Cross pseudo-outcomes + propensity blend',
-            'Honest splits on τ heterogeneity',
             'Doubly robust semiparametric',
         ],
         'Key Risk': [
@@ -115,59 +116,63 @@ if not comp_df.empty and 'qini_auc' in comp_df.columns:
             'High variance with imbalanced arms',
             'Treatment shrinkage (T feature dominated)',
             'Requires reasonable propensity estimation',
-            'Computationally intensive',
             'Requires correct nuisance model spec',
         ],
     }
-    st.dataframe(pd.DataFrame(desc_data), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(desc_data), width='stretch', hide_index=True)
 else:
     st.info(
         "Run Phase 2–4 notebooks to generate `master_comparison_table.csv` with Qini AUC scores. "
         "Showing model descriptions only."
     )
     desc_data = {
-        'Model': ['Naive XGB', 'T-Learner', 'S-Learner', 'X-Learner', 'Causal Forest', 'DR-Learner'],
-        'Type': ['Propensity', 'Meta-Learner', 'Meta-Learner', 'Meta-Learner', 'Non-parametric', 'Semiparametric'],
+        'Model': ['Naive XGB', 'T-Learner', 'S-Learner', 'X-Learner', 'DR-Learner'],
+        'Type': ['Propensity', 'Meta-Learner', 'Meta-Learner', 'Meta-Learner', 'Semiparametric'],
         'Description': [
             'Trains on T=1 only, scores all. Wrong objective — conflates P(buy) with lift.',
             'Separate μ₁(X), μ₀(X). CATE = μ₁ − μ₀. Unbiased under RCT, high variance with small arms.',
             'Single model with T as feature. CATE = μ(X,1) − μ(X,0). Treatment shrinkage risk.',
             'Cross-fitted pseudo-outcomes + propensity blending. Best when treatment is rare.',
-            'Honest trees, splits maximise τ heterogeneity, provides valid CIs via bootstrap.',
             'Doubly robust: survives one misspecified nuisance model (propensity or outcome).',
         ],
     }
-    st.dataframe(pd.DataFrame(desc_data), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(desc_data), width='stretch', hide_index=True)
 
 # ── Section C: Deadweight Loss Comparison ────────────────────────────────────
 st.markdown("---")
 st.markdown("## Deadweight Loss per Model")
-st.markdown("Percentage of targeted population with CATE ≤ 0 — lower is better.")
+st.markdown(
+    "Realized-outcome sleeping-dog rate in each model's top-20% targeted "
+    "segment — the % of that segment which is control-arm customers who "
+    "converted anyway, computed identically for every model regardless of "
+    "its own score scale (see `src/evaluation/metrics.py::topk_deadweight_loss`). "
+    "Lower is better."
+)
 
-if not comp_df.empty and 'deadweight_pct' in comp_df.columns:
-    dw_sorted = comp_df.sort_values('deadweight_pct', ascending=True)
+if not comp_df.empty and 'pct_sleeping_dogs_topk' in comp_df.columns:
+    dw_sorted = comp_df.sort_values('pct_sleeping_dogs_topk', ascending=True)
 
     dw_colors = [PALETTE.get(m, '#3498db') for m in dw_sorted['model']]
     fig_dw = go.Figure()
     fig_dw.add_trace(go.Bar(
         x=dw_sorted['model'],
-        y=dw_sorted['deadweight_pct'],
+        y=dw_sorted['pct_sleeping_dogs_topk'],
         marker_color=dw_colors,
-        text=[f"{v:.1f}%" for v in dw_sorted['deadweight_pct']],
+        text=[f"{v:.1f}%" for v in dw_sorted['pct_sleeping_dogs_topk']],
         textposition='outside',
         textfont=dict(color=TEXT),
     ))
-    fig_dw.update_yaxes(title_text='% of Targeted Population with CATE ≤ 0')
+    fig_dw.update_yaxes(title_text='% Sleeping Dogs in Top-20% Targeted')
     fig_dw = apply_dark_theme(
         fig_dw,
         'Deadweight Loss: % of Promotions Wasted on Non-Persuadables',
         height=400,
     )
-    st.plotly_chart(fig_dw, use_container_width=True)
+    st.plotly_chart(fig_dw, width='stretch')
 else:
     st.info(
         "Deadweight loss breakdown requires `master_comparison_table.csv` with a "
-        "`deadweight_pct` column. Run Phase 2–4 notebooks."
+        "`pct_sleeping_dogs_topk` column. Run Phase 2–4 notebooks."
     )
 
 # ── Section D: Model Cards (expandable) ──────────────────────────────────────
@@ -242,25 +247,6 @@ model_cards = [
         'cons': ['More complex pipeline', 'Requires propensity estimation'],
     },
     {
-        'name': 'Causal Forest',
-        'color': '#1abc9c',
-        'formula': (
-            r'\hat{\tau}(x) = \text{honest forest splits maximising } '
-            r'\text{Var}(\tau(x))\text{, with kernel CIs}'
-        ),
-        'description': (
-            'Non-parametric CATE estimator using honest causal trees. '
-            'Splits are chosen to maximise treatment effect heterogeneity rather than outcome prediction. '
-            'Provides asymptotically valid confidence intervals via the infinitesimal jackknife.'
-        ),
-        'pros': [
-            'Asymptotically valid CIs',
-            'No functional form assumptions',
-            'Captures high-dimensional heterogeneity',
-        ],
-        'cons': ['Computationally expensive', 'No extrapolation outside support'],
-    },
-    {
         'name': 'DR-Learner',
         'color': '#9b59b6',
         'formula': (
@@ -270,16 +256,17 @@ model_cards = [
         'description': (
             'Doubly robust estimator: consistent if *either* the propensity model e(X) or the outcome model '
             'μ(X,T) is correctly specified (but not both need to be). '
-            'Achieves semiparametric efficiency bound, making it the most robust and efficient choice.'
+            'The robustness comes at a variance cost, which is why it does not top the clean-RCT ranking here.'
         ),
         'pros': [
             'Doubly robust — survives one misspecification',
             'Semiparametric efficiency bound',
-            'Best Qini AUC in practice',
+            'Only model whose ranking holds up under confounding',
         ],
         'cons': [
             'Requires fitting two nuisance models',
             'Cross-fitting adds complexity',
+            'Higher variance — underperforms on a clean RCT this size',
         ],
     },
 ]

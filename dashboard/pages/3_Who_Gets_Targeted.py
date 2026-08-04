@@ -11,20 +11,16 @@ from dashboard.utils.data_loader import (
     load_cate_scores,
     load_features,
     get_best_cate_col,
+    best_model_label,
     FEATURE_COLS,
 )
 from dashboard.utils.charts import (
     apply_dark_theme,
     cate_histogram,
     segment_bar,
-    PALETTE,
     TEXT,
-    BG_PAPER,
-    BG_PLOT,
-    GRID,
 )
 
-st.set_page_config(page_title='Who Gets Targeted — Nudge', layout='wide')
 
 st.title("👥 Who Gets Targeted?")
 st.markdown("### Customer segment analysis — who responds to promotions?")
@@ -103,7 +99,7 @@ if segment_options and score_col:
         grouped[seg_col] = grouped[seg_col].astype(str)
 
     colors_seg = ['#9b59b6' if v >= 0 else '#e74c3c' for v in grouped['mean_cate']]
-    model_label = best_cate.replace('_', ' ').title() if best_cate else 'Best Available Score'
+    model_label = best_model_label(df)
 
     fig_seg = segment_bar(
         labels=grouped[seg_col].tolist(),
@@ -114,7 +110,7 @@ if segment_options and score_col:
         y_title='Mean CATE (Incremental Lift)',
         height=400,
     )
-    st.plotly_chart(fig_seg, use_container_width=True)
+    st.plotly_chart(fig_seg, width='stretch')
 
     # Second chart: always show spend tier if available
     if 'spend_tier' in df.columns and seg_col != 'spend_tier':
@@ -134,7 +130,7 @@ if segment_options and score_col:
             y_title='Mean CATE',
             height=360,
         )
-        st.plotly_chart(fig_sp, use_container_width=True)
+        st.plotly_chart(fig_sp, width='stretch')
 else:
     st.info(
         "Segment features (recency_bucket, spend_tier) not found in current data. "
@@ -147,7 +143,7 @@ st.markdown("## CATE Score Distribution")
 
 if score_col and score_col in df.columns:
     scores = df[score_col].dropna().values
-    model_label = best_cate.replace('_', ' ').title() if best_cate else 'Scores'
+    model_label = best_model_label(df)
 
     fig_hist = cate_histogram(scores, model_label, color='#9b59b6')
 
@@ -161,7 +157,7 @@ if score_col and score_col in df.columns:
         fig_hist.add_vline(x=pval, line_color=color, line_dash='dot', line_width=1.2,
                            annotation_text=label, annotation_font_color=color)
 
-    st.plotly_chart(fig_hist, use_container_width=True)
+    st.plotly_chart(fig_hist, width='stretch')
 
     # Stats table
     stats = {
@@ -178,7 +174,7 @@ if score_col and score_col in df.columns:
     }
     col_stats, _ = st.columns([1, 2])
     with col_stats:
-        st.dataframe(pd.DataFrame(stats), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(stats), width='stretch', hide_index=True)
 
 # ── Section C: Top 10 Most Persuadable Customer Profiles ─────────────────────
 st.markdown("---")
@@ -218,7 +214,7 @@ if score_col and score_col in df.columns:
     cate_display = rename_map[score_col]
     top10[cate_display] = top10[cate_display].round(4)
 
-    st.dataframe(top10, use_container_width=True)
+    st.dataframe(top10, width='stretch')
 
 # ── Section D: Feature Heterogeneity ─────────────────────────────────────────
 st.markdown("---")
@@ -263,20 +259,20 @@ if score_col and score_col in df.columns:
             'Which Features Drive Treatment Effect Heterogeneity?',
             height=420,
         )
-        st.plotly_chart(fig_corr, use_container_width=True)
+        st.plotly_chart(fig_corr, width='stretch')
 
         st.caption(
             "Features with high |correlation| are stronger predictors of individual treatment "
-            "responsiveness. Note: correlation is a linear proxy — Causal Forest importance "
-            "provides a more robust non-linear measure."
+            "responsiveness. Note: correlation is a linear proxy — it will miss non-linear "
+            "heterogeneity that a tree-based model like X-Learner or DR-Learner can capture."
         )
 
-        # CI heterogeneity from Causal Forest if available
-        if 'cf_ci_upper' in df.columns and 'cf_ci_lower' in df.columns:
-            df['ci_width'] = df['cf_ci_upper'] - df['cf_ci_lower']
-            ci_zero_pct = df.get('cf_ci_includes_zero', pd.Series()).mean() * 100 if 'cf_ci_includes_zero' in df.columns else None
+        # CI heterogeneity from DR-Learner if available
+        if 'dr_ci_upper' in df.columns and 'dr_ci_lower' in df.columns:
+            df['ci_width'] = df['dr_ci_upper'] - df['dr_ci_lower']
+            ci_zero_pct = df.get('dr_ci_includes_zero', pd.Series()).mean() * 100 if 'dr_ci_includes_zero' in df.columns else None
 
-            st.markdown("#### Causal Forest Confidence Interval Width")
+            st.markdown("#### DR-Learner Confidence Interval Width")
             col_ci1, col_ci2 = st.columns(2)
             col_ci1.metric("Mean CI Width", f"{df['ci_width'].mean():.4f}")
             if ci_zero_pct is not None:

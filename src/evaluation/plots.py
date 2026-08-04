@@ -11,9 +11,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-from typing import Sequence
 
-from .metrics import qini_curve, auuc
+from .metrics import qini_curve
 
 
 PALETTE = {
@@ -22,7 +21,6 @@ PALETTE = {
     "s_learner":"#2ecc71",
     "x_learner":"#f39c12",
     "dr":       "#9b59b6",
-    "causal_forest": "#1abc9c",
     "random":   "#95a5a6",
 }
 FIGSIZE = (9, 5)
@@ -119,7 +117,7 @@ def plot_cate_distribution(
     frac_neg = (cate_scores <= 0).mean()
     ax.set_title(
         f"CATE Distribution – {model_name}\n"
-        f"Deadweight loss: {frac_neg:.1%} of population",
+        f"Non-positive CATE: {frac_neg:.1%} of population",
         pad=10,
     )
     ax.set_xlabel("Predicted CATE")

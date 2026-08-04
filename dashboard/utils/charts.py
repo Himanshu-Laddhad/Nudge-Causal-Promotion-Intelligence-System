@@ -13,7 +13,6 @@ PALETTE  = {
     'T-Learner':    '#3498db',
     'S-Learner':    '#2ecc71',
     'X-Learner':    '#f39c12',
-    'Causal Forest': '#1abc9c',
     'DR-Learner':   '#9b59b6',
 }
 

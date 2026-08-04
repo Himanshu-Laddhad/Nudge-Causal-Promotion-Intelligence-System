@@ -24,7 +24,6 @@ from dashboard.utils.charts import (
     GRID,
 )
 
-st.set_page_config(page_title='Technical Deep Dive — Nudge', layout='wide')
 
 st.title("🔬 Technical Deep Dive")
 st.markdown("### Causal identification, robustness, and model validation")
@@ -55,7 +54,7 @@ else:
         display_df = robust_df.copy()
         if 'Pct_Drop' in display_df.columns:
             display_df['Pct_Drop'] = display_df['Pct_Drop'].map(lambda x: f"{x:.1f}%")
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        st.dataframe(display_df, width='stretch', hide_index=True)
 
     with col_chart:
         fig_rob = go.Figure()
@@ -86,7 +85,7 @@ else:
 
         fig_rob.update_layout(barmode='group')
         fig_rob = apply_dark_theme(fig_rob, 'Qini AUC: Clean vs Confounded Data', height=420)
-        st.plotly_chart(fig_rob, use_container_width=True)
+        st.plotly_chart(fig_rob, width='stretch')
 
     with st.expander("What confounding was introduced?"):
         st.markdown("""
@@ -104,30 +103,38 @@ else:
   (even when neither sees Z directly).
 
 The `Pct_Drop` column shows the % reduction in Qini AUC from clean to confounded data.
+
+Read the absolute `Qini_Clean` and `Qini_Confounded` values, not just `Pct_Drop`.
+DR-Learner starts from a negative clean Qini, so a move toward zero registers as a
+negative drop — that is arithmetic, not evidence of superiority. The finding that
+holds is directional: the T-Learner's ranking collapses under confounding and the
+DR-Learner's does not.
         """)
 
 # ── Section B: CATE Confidence Intervals ─────────────────────────────────────
 st.markdown("---")
-st.markdown("## Causal Forest Confidence Intervals")
+st.markdown("## CATE Confidence Intervals")
 
 has_ci = (
     not df.empty
-    and 'cf_ci_lower' in df.columns
-    and 'cf_ci_upper' in df.columns
+    and 'dr_ci_lower' in df.columns
+    and 'dr_ci_upper' in df.columns
 )
 
 if not has_ci:
     st.info(
-        "Causal Forest confidence intervals require `phase3_cate_predictions.parquet` with "
-        "columns `cf_ci_lower`, `cf_ci_upper`, `cf_ci_includes_zero`. "
-        "Run `phase3_causal_forest.ipynb`."
+        "DR-Learner confidence intervals require `phase4_final_cate.parquet` with "
+        "columns `dr_ci_lower`, `dr_ci_upper`, `dr_ci_includes_zero`. "
+        "Run `phase4_dr_learner_robustness.ipynb` — note econml's `DRLearner.effect_interval` "
+        "is not always available depending on the nuisance models used; when unavailable, this "
+        "section stays hidden rather than showing stale data."
     )
 else:
-    df['ci_width'] = df['cf_ci_upper'] - df['cf_ci_lower']
-    ci_zero_col    = 'cf_ci_includes_zero'
+    df['ci_width'] = df['dr_ci_upper'] - df['dr_ci_lower']
+    ci_zero_col    = 'dr_ci_includes_zero'
 
     col_m1, col_m2, col_m3 = st.columns(3)
-    col_m1.metric("Mean CATE", f"{df['cate_cf'].mean():.4f}")
+    col_m1.metric("Mean CATE", f"{df['cate_dr_clean'].mean():.4f}")
     col_m2.metric("Mean CI Width", f"{df['ci_width'].mean():.4f}")
     if ci_zero_col in df.columns:
         ci_zero_pct = df[ci_zero_col].mean() * 100
@@ -146,7 +153,7 @@ else:
             mask = sample[ci_zero_col] == sig
             if mask.any():
                 fig_scatter.add_trace(go.Scatter(
-                    x=sample.loc[mask, 'cate_cf'],
+                    x=sample.loc[mask, 'cate_dr_clean'],
                     y=sample.loc[mask, 'ci_width'],
                     mode='markers',
                     name=name,
@@ -160,7 +167,7 @@ else:
             'CATE Estimates vs Confidence Interval Width',
             height=430,
         )
-        st.plotly_chart(fig_scatter, use_container_width=True)
+        st.plotly_chart(fig_scatter, width='stretch')
         st.caption("Wider CIs indicate higher uncertainty. Red points = CI crosses zero (not statistically significant).")
 
 # ── Section C: Decile Validation ─────────────────────────────────────────────
@@ -209,10 +216,10 @@ else:
             'Decile Validation: Does the Model Correctly Rank Persuadability?',
             height=430,
         )
-        st.plotly_chart(fig_decile, use_container_width=True)
+        st.plotly_chart(fig_decile, width='stretch')
 
     with col_decile_table:
-        st.dataframe(decile_df, use_container_width=True, hide_index=True)
+        st.dataframe(decile_df, width='stretch', hide_index=True)
 
     st.caption(
         "A well-calibrated model shows monotonically decreasing actual uplift from decile 1 to 10. "
@@ -223,7 +230,7 @@ else:
 st.markdown("---")
 st.markdown("## Model Reference Cards")
 
-tab_names = ['Naive XGB', 'T-Learner', 'S-Learner', 'X-Learner', 'Causal Forest', 'DR-Learner']
+tab_names = ['Naive XGB', 'T-Learner', 'S-Learner', 'X-Learner', 'DR-Learner']
 tabs = st.tabs(tab_names)
 
 model_info = {
@@ -284,23 +291,6 @@ model_info = {
             'Best advantage emerges when one arm is much smaller.'
         ),
     },
-    'Causal Forest': {
-        'type': 'Non-parametric',
-        'assumption': 'Unconfoundedness; overlap (0 < e(x) < 1)',
-        'formula': (
-            r'\text{Honest splits on } \hat{\text{Var}}(\tau(x)); '
-            r'\text{ IJ-bootstrap CIs}'
-        ),
-        'formula_display': 'Honest splits maximising Var(τ(x)); infinitesimal jackknife CIs',
-        'pros': 'Valid asymptotic CIs; no functional form assumptions; captures high-dim heterogeneity',
-        'cons': 'Computationally expensive; no extrapolation',
-        'summary': (
-            'Random forest variant where each tree uses "honest" estimation: '
-            'one half of the sample determines splits, the other estimates leaf means. '
-            'Splits are chosen to maximise treatment effect *variance* (heterogeneity), not outcome fit. '
-            'Infinitesimal jackknife provides pointwise confidence intervals.'
-        ),
-    },
     'DR-Learner': {
         'type': 'Semiparametric',
         'assumption': 'Unconfoundedness + overlap; correct spec of e(X) OR μ(X,T)',
@@ -347,7 +337,7 @@ for tab, name in zip(tabs, tab_names):
                 if not row.empty:
                     if 'qini_auc' in row.columns:
                         st.metric("Qini AUC", f"{row['qini_auc'].iloc[0]:.4f}")
-                    if 'deadweight_pct' in row.columns:
-                        st.metric("Deadweight Loss", f"{row['deadweight_pct'].iloc[0]:.1f}%")
+                    if 'pct_sleeping_dogs_topk' in row.columns:
+                        st.metric("Sleeping Dogs (Top-20%)", f"{row['pct_sleeping_dogs_topk'].iloc[0]:.1f}%")
                     if 'mean_cate' in row.columns:
                         st.metric("Mean CATE", f"{row['mean_cate'].iloc[0]:.4f}")

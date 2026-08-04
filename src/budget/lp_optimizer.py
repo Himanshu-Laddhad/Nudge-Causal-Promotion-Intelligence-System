@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import linprog
 
+from src.config import MARGIN_PER_CONVERSION, PROMO_COST
+
 
 class LPBudgetOptimizer:
     """
@@ -18,11 +20,16 @@ class LPBudgetOptimizer:
 
     Parameters
     ----------
-    cost_per_promo : float — cost of sending one promotion (default $10)
-    revenue_per_conversion : float — expected revenue per incremental conversion (default $50)
+    cost_per_promo : float — expected cost of promoting one customer
+    revenue_per_conversion : float — value of one incremental conversion
+
+    Defaults come from src.config so every phase reports comparable dollars.
+    The default value is *contribution margin*, not gross order value: crediting
+    a campaign with revenue it has to spend on COGS overstates ROI roughly 3x.
     """
 
-    def __init__(self, cost_per_promo: float = 10.0, revenue_per_conversion: float = 50.0):
+    def __init__(self, cost_per_promo: float = PROMO_COST,
+                 revenue_per_conversion: float = MARGIN_PER_CONVERSION):
         self.cost_per_promo = cost_per_promo
         self.revenue_per_conversion = revenue_per_conversion
 
@@ -90,7 +97,10 @@ class LPBudgetOptimizer:
         """
         Run optimize() across multiple budget levels and return a comparison DataFrame.
 
-        If naive_scores provided, also computes naive-targeting metrics for comparison.
+        If naive_scores is provided, the naive strategy is used only to *select*
+        customers; the resulting set is then scored on the same CATE yardstick as
+        the optimal set. Scoring naive selections on P(convert) instead would
+        compare two different quantities and inflate the naive strategy.
 
         Returns DataFrame with one row per budget with columns:
             budget, n_targeted, pct_population, expected_lift,
@@ -114,10 +124,16 @@ class LPBudgetOptimizer:
                 'pct_positive_cate_targeted': round(res['pct_positive_cate_targeted'], 2),
             }
             if naive_scores is not None:
-                naive_res = self.optimize(np.asarray(naive_scores), b, costs=costs)
-                row['naive_lift'] = round(naive_res['expected_lift'], 4)
-                row['lift_vs_naive'] = round(res['expected_lift'] - naive_res['expected_lift'], 4)
-                row['naive_roi'] = round(naive_res['expected_roi'], 4)
-                row['roi_vs_naive'] = round(res['expected_roi'] - naive_res['expected_roi'], 4)
+                naive_mask = self.optimize(np.asarray(naive_scores), b, costs=costs)['target_mask']
+                naive_lift = float(scores[naive_mask].sum())
+                naive_cost = (float(np.asarray(costs)[naive_mask].sum())
+                              if costs is not None
+                              else naive_mask.sum() * self.cost_per_promo)
+                naive_revenue = naive_lift * self.revenue_per_conversion
+                naive_roi = (naive_revenue - naive_cost) / max(naive_cost, 1e-9)
+                row['naive_lift'] = round(naive_lift, 4)
+                row['lift_vs_naive'] = round(res['expected_lift'] - naive_lift, 4)
+                row['naive_roi'] = round(naive_roi, 4)
+                row['roi_vs_naive'] = round(res['expected_roi'] - naive_roi, 4)
             rows.append(row)
         return pd.DataFrame(rows)

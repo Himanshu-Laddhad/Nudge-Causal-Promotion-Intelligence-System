@@ -1,2 +1,2 @@
 model,roc_auc,qini_auc,auuc,pct_sleeping_dogs_in_top20,wasted_budget_usd,wasted_budget_annualised_usd,n_targeted_top20,notes
-naive_xgb_conversion,0.57866,0.0117,0.00555,0.27,350,18200,12800,"Trained on T=1 only; scores all customers by P(convert|X,T=1); naive mistake"
+naive_xgb_conversion,0.57995,0.02235,0.00594,0.3,17.07,887.64,12800,"Trained on T=1 only; scores all customers by P(convert|X,T=1); naive mistake"

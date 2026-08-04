@@ -11,19 +11,15 @@ from dashboard.utils.data_loader import (
     load_cate_scores,
     load_master_comparison,
     load_budget_results,
-    get_best_cate_col,
+    best_model_label,
+    held_out,
 )
 from dashboard.utils.charts import (
     apply_dark_theme,
     persuadability_heatmap,
     pie_segments,
-    PALETTE,
-    TEXT,
-    BG_PAPER,
-    BG_PLOT,
 )
 
-st.set_page_config(page_title='Business Problem — Nudge', layout='wide')
 
 st.title("📊 The Business Problem")
 st.markdown("### Why standard ML wastes your promotion budget")
@@ -51,32 +47,32 @@ creates net-new revenue.
 
 with col_metric:
     comparison = load_master_comparison()
-    if not comparison.empty and 'deadweight_pct' in comparison.columns:
+    DW_COL = 'pct_sleeping_dogs_topk'
+    if not comparison.empty and DW_COL in comparison.columns:
         naive_row = comparison[comparison['model'].str.contains('Naive|naive|XGB|xgb', na=False, regex=True)]
         if not naive_row.empty:
-            dw = naive_row['deadweight_pct'].iloc[0]
+            dw = naive_row[DW_COL].iloc[0]
             st.metric(
-                label="Naive XGB Deadweight Loss",
-                value=f"{dw:.1f}%",
-                delta="of campaign budget wasted",
+                label="Naive XGB — sleeping dogs in top 20%",
+                value=f"{dw:.2f}%",
+                delta="of targeted spend is deadweight",
                 delta_color="inverse",
             )
-        dr_row = comparison[comparison['model'].str.contains('DR|dr|doubly', na=False, regex=True, case=False)]
-        if not dr_row.empty:
-            dr_dw = dr_row['deadweight_pct'].iloc[0]
+        best_label = best_model_label()
+        best_row = comparison[comparison['model'] == best_label]
+        if not best_row.empty:
+            best_dw = best_row[DW_COL].iloc[0]
             st.metric(
-                label="DR-Learner Deadweight Loss",
-                value=f"{dr_dw:.1f}%",
-                delta=f"vs Naive XGB",
+                label=f"{best_label} — sleeping dogs in top 20%",
+                value=f"{best_dw:.2f}%",
+                delta=f"{best_dw - dw:+.2f} pp vs Naive XGB",
+                delta_color="inverse",
             )
     else:
         st.info(
             "Run the Phase 2–4 notebooks to generate `master_comparison_table.csv` "
             "with full model comparison metrics."
         )
-        # Show illustrative placeholder metrics
-        st.metric("Naive XGB Deadweight Loss", "~65%", delta="of top-20% are sleeping dogs", delta_color="inverse")
-        st.metric("DR-Learner Deadweight Loss", "~32%", delta="vs Naive XGB")
 
     st.markdown("""
     <div style="background:#1a1a2e; border:1px solid #2c3e50; border-radius:8px; padding:1rem; margin-top:1rem;">
@@ -102,15 +98,12 @@ df = load_cate_scores()
 if df.empty:
     st.info("Run Phase 1 notebook (`phase1_naive_baseline.ipynb`) to generate score data.")
 else:
-    best_cate = get_best_cate_col(df)
-    score_col = best_cate if best_cate else '_best_cate'
-
-    if '_best_cate' in df.columns:
-        score_col = '_best_cate'
+    score_col = '_best_cate'
 
     if score_col in df.columns:
-        threshold = np.percentile(df[score_col], 80)
-        quad = df.copy()
+        # Observed conversion rates must come from held-out rows only.
+        quad = held_out(df).copy()
+        threshold = np.percentile(quad[score_col], 80)
         quad['score_band'] = np.where(quad[score_col] >= threshold, 'High Score', 'Low Score')
         quad['arm'] = np.where(quad['treatment'] == 1, 'Treated', 'Control')
 
@@ -133,7 +126,7 @@ else:
 
         col_hm, col_note = st.columns([2, 1])
         with col_hm:
-            st.plotly_chart(persuadability_heatmap(heatmap_data), use_container_width=True)
+            st.plotly_chart(persuadability_heatmap(heatmap_data), width='stretch')
         with col_note:
             if len(z_vals) >= 2:
                 high_control   = z_vals[0][0] if z_vals[0] else 0
@@ -177,21 +170,13 @@ with col_naive:
     <h4 style="color:#e74c3c; margin:0 0 1rem 0;">❌ Naive XGB Targeting</h4>
     """, unsafe_allow_html=True)
 
-    if not budget_df.empty:
-        row_25 = budget_df[budget_df['budget'] == 25000]
-        if not row_25.empty:
-            r = row_25.iloc[0]
-            st.metric("Customers Targeted", f"{int(r['n_targeted']):,}")
-            st.metric("Expected Lift", f"+{r['expected_lift']:.1f} conversions")
-            st.metric("ROI", f"{r['expected_roi']:+.1f}%")
-        else:
-            st.metric("Customers Targeted", "~2,500")
-            st.metric("Expected Lift", "~16 conversions")
-            st.metric("ROI", "~32%")
+    if not budget_df.empty and not budget_df[budget_df['budget'] == 25000].empty:
+        r = budget_df[budget_df['budget'] == 25000].iloc[0]
+        st.metric("Customers Targeted", f"{int(r['n_targeted']):,}")
+        st.metric("Expected Lift", f"+{r['naive_lift']:.1f} conversions")
+        st.metric("ROI", f"{r['naive_roi'] * 100:+.1f}%")
     else:
-        st.metric("Customers Targeted", "~2,500")
-        st.metric("Expected Lift", "~16 conversions (illustrative)")
-        st.metric("ROI", "~32% (illustrative)")
+        st.info("Run the Phase 5A notebook to populate this comparison.")
 
     st.markdown("""
     <p style="color:#95a5a6; font-size:0.85rem; margin-top:0.75rem;">
@@ -201,24 +186,26 @@ with col_naive:
     """, unsafe_allow_html=True)
 
 with col_cate:
-    st.markdown("""
+    st.markdown(f"""
     <div style="background:#152d15; border:1px solid #2ecc71; border-radius:10px; padding:1.5rem;">
-    <h4 style="color:#2ecc71; margin:0 0 1rem 0;">✅ DR-Learner CATE-Optimal Targeting</h4>
+    <h4 style="color:#2ecc71; margin:0 0 1rem 0;">✅ {best_model_label()} CATE-Optimal Targeting</h4>
     """, unsafe_allow_html=True)
 
-    if not budget_df.empty:
-        row_25 = budget_df[budget_df['budget'] == 25000]
-        if not row_25.empty:
-            r = row_25.iloc[0]
-            # For now these come from the same file; improvement shown as delta
-            st.metric("Customers Targeted", f"{int(r['n_targeted']):,}")
-            expected_improvement = r['expected_lift'] * 1.4  # illustrative until full phase4 data
-            st.metric("Expected Lift", f"+{r['expected_lift']:.1f} conversions")
-            st.metric("ROI", f"{r['expected_roi']:+.1f}%")
+    if not budget_df.empty and not budget_df[budget_df['budget'] == 25000].empty:
+        r = budget_df[budget_df['budget'] == 25000].iloc[0]
+        st.metric("Customers Targeted", f"{int(r['n_targeted']):,}")
+        st.metric(
+            "Expected Lift",
+            f"+{r['expected_lift']:.1f} conversions",
+            delta=f"{r['lift_vs_naive']:+.1f} vs naive",
+        )
+        st.metric(
+            "ROI",
+            f"{r['expected_roi'] * 100:+.1f}%",
+            delta=f"{r['roi_vs_naive'] * 100:+.1f} pp vs naive",
+        )
     else:
-        st.metric("Customers Targeted", "~2,500")
-        st.metric("Expected Lift", "~22 conversions (illustrative)")
-        st.metric("ROI", "~80% (illustrative)")
+        st.info("Run the Phase 5A notebook to populate this comparison.")
 
     st.markdown("""
     <p style="color:#95a5a6; font-size:0.85rem; margin-top:0.75rem;">
@@ -228,9 +215,11 @@ with col_cate:
     """, unsafe_allow_html=True)
 
 if not budget_df.empty:
-    st.info(
-        "Full naive vs CATE comparison requires Phase 4 outputs. "
-        "Run `phase4_dr_learner_robustness.ipynb` to populate both columns."
+    st.caption(
+        "Both columns are scored on the same yardstick: the naive model only "
+        "*selects* customers, and the resulting set is then valued using CATE. "
+        "Scoring naive selections on P(convert) would compare two different "
+        "quantities and flatter the baseline."
     )
 
 # ── Section D: Deadweight Loss Breakdown ──────────────────────────────────────
@@ -270,7 +259,7 @@ if not df.empty and '_best_cate' in df.columns:
                 colors=['#2ecc71', '#f39c12', '#e74c3c'],
                 title='Customer Population by Persuadability',
             )
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.plotly_chart(fig_pie, width='stretch')
 
         with col_explain:
             st.markdown(f"""
@@ -294,11 +283,12 @@ Promotion is wasted, no harm done.</p>
             "CATE-based segment breakdown requires Phase 2+ outputs. "
             "Currently showing Phase 1 naive scores (P(convert) scale)."
         )
-        top20_mask = cate >= np.percentile(cate, 80)
+        eval_df = held_out(df)
+        eval_cate = eval_df['_best_cate'].values
+        top20_mask = eval_cate >= np.percentile(eval_cate, 80)
         in_top20   = top20_mask.sum()
-        treated_in_top20    = df.loc[top20_mask, 'treatment'].sum() if 'treatment' in df.columns else 0
-        ctrl_conv_top20     = df.loc[top20_mask & (df['treatment'] == 0), 'conversion'].mean() if 'treatment' in df.columns else 0
-        treated_conv_top20  = df.loc[top20_mask & (df['treatment'] == 1), 'conversion'].mean() if 'treatment' in df.columns else 0
+        ctrl_conv_top20     = eval_df.loc[top20_mask & (eval_df['treatment'] == 0), 'conversion'].mean() if 'treatment' in eval_df.columns else 0
+        treated_conv_top20  = eval_df.loc[top20_mask & (eval_df['treatment'] == 1), 'conversion'].mean() if 'treatment' in eval_df.columns else 0
 
         col_s1, col_s2, col_s3 = st.columns(3)
         col_s1.metric("Customers in Top 20%", f"{in_top20:,}")

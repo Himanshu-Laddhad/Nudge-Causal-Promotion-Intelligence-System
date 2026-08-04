@@ -5,6 +5,8 @@ from .metrics import (
     deadweight_loss_fraction,
     ate_from_rct,
     att_from_rct,
+    topk_deadweight_loss,
+    bootstrap_qini_ci,
     evaluation_summary,
 )
 from .plots import (
@@ -16,6 +18,6 @@ from .plots import (
 __all__ = [
     "qini_curve", "qini_auc", "auuc",
     "deadweight_loss_fraction", "ate_from_rct", "att_from_rct",
-    "evaluation_summary",
+    "topk_deadweight_loss", "bootstrap_qini_ci", "evaluation_summary",
     "plot_qini_curves", "plot_cate_distribution", "plot_segment_waterfall",
 ]

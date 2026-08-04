@@ -99,30 +99,30 @@ lift a promotion *causes* for each individual — and allocates budget only to t
 segment, eliminating deadweight spend on loyal customers who convert regardless.
 """)
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from dashboard.utils.data_loader import phases_available, best_model_label
+
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Dataset", "64K customers")
 col2.metric("Design", "3-arm RCT")
 col3.metric("Models", "5 (Naive → DR)")
-col4.metric("Best Model", "DR-Learner")
+col4.metric("Best Model", best_model_label(), help="Highest Qini AUC in master_comparison_table.csv")
 
 st.markdown("---")
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from dashboard.utils.data_loader import phases_available
 
 avail = phases_available()
 phase_labels = {
     'phase1': 'Phase 1 — Naive XGBoost',
     'phase2': 'Phase 2 — Meta-Learners',
-    'phase3': 'Phase 3 — Causal Forest',
-    'phase4': 'Phase 4 — DR-Learner',
+    'phase4': 'Phase 4 — DR-Learner & Robustness',
     'features': 'Feature Parquet',
     'master': 'Master Comparison Table',
     'budget': 'Budget Optimizer Results',
     'robustness': 'Robustness Experiment',
     'decile': 'Decile Validation',
+    'breakeven': 'Break-Even Analysis',
 }
 
 st.markdown("### Data Status")

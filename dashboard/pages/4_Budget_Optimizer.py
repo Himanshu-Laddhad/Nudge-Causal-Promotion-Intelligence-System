@@ -16,12 +16,9 @@ from dashboard.utils.charts import (
     apply_dark_theme,
     budget_curve_plot,
     TEXT,
-    BG_PAPER,
-    BG_PLOT,
-    GRID,
 )
+from src.config import MARGIN_PER_CONVERSION, PROMO_COST
 
-st.set_page_config(page_title='Budget Optimizer — Nudge', layout='wide')
 
 st.title("💰 Budget Optimizer")
 st.markdown("### Set your campaign budget and see the optimal targeting strategy")
@@ -51,19 +48,35 @@ order       = np.argsort(-cate_scores)   # descending by score — computed once
 # ── Sidebar inputs ────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### Campaign Parameters")
-    cost_per_promo   = st.number_input("Discount cost per customer ($)", value=10, min_value=1, max_value=100)
-    revenue_per_conv = st.number_input("Revenue per conversion ($)", value=50, min_value=10, max_value=500)
+    cost_per_promo = st.number_input(
+        "Cost per customer promoted ($)",
+        value=float(PROMO_COST), min_value=0.01, max_value=100.0, step=0.05,
+        format="%.2f",
+        help="Email send cost plus the discount, weighted by how often it is "
+             "actually redeemed. See src/config.py.",
+    )
+    revenue_per_conv = st.number_input(
+        "Margin per incremental conversion ($)",
+        value=float(MARGIN_PER_CONVERSION), min_value=1.0, max_value=500.0, step=1.0,
+        help="Contribution margin, not gross order value: mean spend among "
+             "converters in the RCT, after COGS.",
+    )
 
 # ── Section A: Interactive Budget Slider ─────────────────────────────────────
 st.markdown("---")
 
+# Cap the slider at the cost of mailing everyone — spending past that buys
+# nothing. A low enough per-customer cost makes that ceiling small, so the
+# step and floor scale with it rather than assuming a five-figure campaign.
 max_budget = int(min(n * cost_per_promo, 150_000))
+step = max(100, round(max_budget / 100 / 100) * 100)
+min_budget = min(step, max_budget)
 budget = st.slider(
     "Campaign Budget ($)",
-    min_value=1_000,
-    max_value=max_budget,
-    value=min(25_000, max_budget),
-    step=1_000,
+    min_value=min_budget,
+    max_value=max(max_budget, min_budget + step),
+    value=min(int(max_budget * 0.5), max_budget),
+    step=step,
     format="$%d",
 )
 
@@ -132,9 +145,9 @@ allocation = allocation.sort_values('Predicted CATE', ascending=False).head(50)
 
 try:
     styled = allocation.style.background_gradient(subset=['Predicted CATE'], cmap='Purples')
-    st.dataframe(styled, use_container_width=True)
+    st.dataframe(styled, width='stretch')
 except Exception:
-    st.dataframe(allocation, use_container_width=True)
+    st.dataframe(allocation, width='stretch')
 
 # ── Section C: Pre-computed Budget Curve ──────────────────────────────────────
 st.markdown("---")
@@ -156,7 +169,7 @@ if not budget_df.empty and 'expected_lift' in budget_df.columns:
             annotation_font_color='#f39c12',
         )
 
-    st.plotly_chart(fig_curve, use_container_width=True)
+    st.plotly_chart(fig_curve, width='stretch')
 else:
     st.info(
         "Pre-computed budget curve not found. "
@@ -241,7 +254,7 @@ fig_elbow = apply_dark_theme(
     'Cumulative Lift vs Budget — Efficient Zone vs Diminishing Returns',
     height=430,
 )
-st.plotly_chart(fig_elbow, use_container_width=True)
+st.plotly_chart(fig_elbow, width='stretch')
 
 st.caption(
     f"Elbow detected at approximately **${elbow_budget:.0f}K** — budgets beyond this point yield "

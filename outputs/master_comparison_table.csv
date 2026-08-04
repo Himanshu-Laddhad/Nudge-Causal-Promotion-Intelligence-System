@@ -1,7 +1,6 @@
-model,qini_auc,deadweight_loss_pct,mean_cate,std_cate,pct_positive_cate,deadweight_pct
-Naive XGB,-0.0278,0.0,0.0106,0.0128,100.0,
-T-Learner,-0.0031,21.24,0.0048,0.008,78.7578,
-S-Learner,0.0276,5.09,0.0047,0.0048,94.9141,
-X-Learner,-0.0412,26.45,0.0046,0.0122,73.5547,
-Causal Forest,-0.087686,,0.00482,0.01168,,22.98
-DR-Learner,-0.071784,,0.00456,0.02015,,19.42
+model,qini_auc,pct_sleeping_dogs_topk,wasted_budget_usd_topk,mean_cate,std_cate,pct_positive_cate
+Naive XGB,0.0117,1.08,12.45,0.0107,0.008,100.0
+T-Learner,0.0015,0.85,9.79,0.0047,0.0075,79.4141
+S-Learner,0.0366,0.87,9.98,0.0047,0.0043,95.6562
+X-Learner,-0.0587,1.02,11.73,-0.0006,0.0083,53.4844
+DR-Learner,-0.125071,1.07,12.35,0.00476,0.01422,75.3672

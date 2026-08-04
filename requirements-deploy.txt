@@ -1,0 +1,7 @@
+# AWS SageMaker / Triton deployment only. Not needed to run the notebooks or
+# the dashboard, and both pull in a large dependency tree, so they are kept
+# out of the core install.
+-r requirements.txt
+
+boto3>=1.34
+sagemaker>=2.220
